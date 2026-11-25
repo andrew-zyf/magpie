@@ -368,3 +368,42 @@ func TestHubOnDemandKeepsAlwaysLoaded(t *testing.T) {
 		t.Fatalf("without the mark, listed %v", got)
 	}
 }
+
+// Antigravity CLI 1.5.16 makes its toolbox from a tool carrying both
+// annotations and _meta {"antigravity/alwaysLoad": true} and refuses the
+// whole agent over the schema it writes ("allOf failed: items at 0 and 1
+// are equal", google-antigravity/antigravity-cli): agy is given the tool
+// without that key, the rest of its _meta as its server wrote it, and the
+// other agents keep both.
+func TestHubAlwaysLoadedAgyKeepsNoAntigravityKey(t *testing.T) {
+	fresh(t)
+	var pub map[string]json.RawMessage
+	for _, x := range artifactsMCPTools() {
+		if m := x.(map[string]any); m["name"] == artifactPublishTool {
+			pub = map[string]json.RawMessage{}
+			for k, v := range m {
+				pub[k], _ = json.Marshal(v)
+			}
+		}
+	}
+	if pub == nil {
+		t.Fatalf("%s lists no %s", artifactsServerName, artifactPublishTool)
+	}
+	withHub(t, &fakeHub{on: true, tools: map[string][]HubTool{"agy": {{Server: artifactsServerName, Tool: artifactPublishTool, Spec: pub}}}})
+	h := lanGuard(New().Handler())
+	body := hubPost(h, "agy", here, toolsList).Body.String()
+	if strings.Contains(body, `"antigravity/alwaysLoad"`) {
+		t.Fatalf("agy is given the key it can't take: %s", body)
+	}
+	if !strings.Contains(body, `"anthropic/alwaysLoad":true`) {
+		t.Fatalf("the rest of the publish tool's _meta is gone: %s", body)
+	}
+	want := HubToolName(artifactsServerName, artifactPublishTool)
+	if got := listedNames(t, readMCP(t, hubPost(h, "agy", here, toolsList))); !slices.Contains(got, want) {
+		t.Fatalf("agy listed %v, want %s among them", got, want)
+	}
+	withHub(t, &fakeHub{on: true, tools: map[string][]HubTool{"claude": {{Server: artifactsServerName, Tool: artifactPublishTool, Spec: pub}}}})
+	if body := hubPost(h, "claude", here, toolsList).Body.String(); !strings.Contains(body, `"antigravity/alwaysLoad":true`) {
+		t.Fatalf("claude lost the publish tool's _meta: %s", body)
+	}
+}

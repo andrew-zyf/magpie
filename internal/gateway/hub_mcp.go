@@ -816,13 +816,13 @@ func (s *Server) hubMCPCall(r *http.Request, agent string, m mcpMessage) (any, m
 			}
 			for _, t := range ts {
 				if hubAlwaysLoaded(t) {
-					list = append(list, hubSpecOf(t, where))
+					list = append(list, hubSpecOfAgent(t, where, agent))
 				}
 			}
 		} else {
 			list = make([]any, 0, len(ts)+1)
 			for _, t := range ts {
-				list = append(list, hubSpecOf(t, where))
+				list = append(list, hubSpecOfAgent(t, where, agent))
 			}
 		}
 		if hubCodeOn(len(ts)) {

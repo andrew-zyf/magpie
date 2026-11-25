@@ -229,6 +229,29 @@ func hubSpecOf(t hubTool, where string) map[string]json.RawMessage {
 	return spec
 }
 
+// hubSpecOfAgent is hubSpecOf as agent is given t. Antigravity CLI 1.5.16
+// builds its toolbox from a tool carrying both annotations and _meta
+// {"antigravity/alwaysLoad": true} and fails the whole agent over the
+// schema it writes for it ("allOf failed: items at 0 and 1 are equal",
+// google-antigravity/antigravity-cli), so agy is given the spec without
+// that key: the tool is listed as any other, and agy's own lazy load reads
+// the schema file it writes for it (hubSearchesItself).
+func hubSpecOfAgent(t hubTool, where, agent string) map[string]json.RawMessage {
+	spec := hubSpecOf(t, where)
+	id, _, _ := strings.Cut(HubAgentOf(agent), "@")
+	var m map[string]any
+	if id != "agy" || json.Unmarshal(spec["_meta"], &m) != nil || m[hubAlwaysAgy] != true {
+		return spec
+	}
+	delete(m, hubAlwaysAgy)
+	if len(m) == 0 {
+		delete(spec, "_meta")
+		return spec
+	}
+	spec["_meta"], _ = json.Marshal(m)
+	return spec
+}
+
 // hubDesc is t's description as its server gives it.
 func hubDesc(t hubTool) string {
 	var d string
